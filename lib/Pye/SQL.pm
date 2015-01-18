@@ -1,6 +1,6 @@
 package Pye::SQL;
 
-# ABSTRACT: Session-based logging platform on top of MongoDB
+# ABSTRACT: Log with Pye into MySQL, PostgreSQL or SQLite
 
 use warnings;
 use strict;
@@ -15,12 +15,129 @@ $VERSION = eval $VERSION;
 
 with 'Pye';
 
+our %NOW = (
+	mysql		=> 'NOW(6)',
+	pgsql		=> 'NOW()',
+	sqlite	=> 'strftime("%Y-%m-%d %H:%M:%f")'
+);
+
+=head1 NAME
+
+Pye::SQL - Log with Pye into MySQL, PostgreSQL or SQLite
+
+=head1 SYNOPSIS
+
+	use Pye::SQL;
+
+	my $pye = Pye::SQL->new(
+		db_type => 'mysql', # or 'pgsql' or 'sqlite'
+		database => 'my_log_database',
+		table => 'myapp_logs'
+	);
+
+	# now start logging
+	$pye->log($session_id, "Some log message", { data => 'example data' });
+
+	# inspect the logs from the command line
+	pye -b SQL -t mysql -d my_log_database -T myapp_logs
+
+=head1 DESCRIPTION
+
+This package provides a relational SQL backend for the L<Pye> logging system.
+It currently supports MySQL, PostgreSQL and SQLite.
+
+All of these database systems will require prior creation of the target database
+and table.
+
+=head2 MySQL
+
+When creating a table for logs, use something like this:
+
+	CREATE TABLE logs (
+		session_id VARCHAR(60) NOT NULL,
+		date DATETIME(6) NOT NULL,
+		text TEXT NOT NULL,
+		data TEXT
+	);
+
+	CREATE INDEX logs_per_session ON logs (session_id);
+
+For the C<session_id> and C<text> columns, note that the data type definition is
+purely a suggestions. Use your own judgment as to which data types to use, and
+what lengths, according to your application.
+
+=head2 PostgreSQL
+
+It is recommended to use PostgreSQL from version 9.3 and up. When creating a table
+for logs, use something like this:
+
+	CREATE TABLE logs (
+		session_id VARCHAR(60) NOT NULL,
+		date TIMESTAMP WITH TIME ZONE NOT NULL,
+		text TEXT NOT NULL,
+		data JSON
+	);
+
+	CREATE INDEX ON logs (session_id);
+
+If using v9.4, C<data> better be a C<JSONB> column. As with C<MySQL>, use your own
+judgment for the data type and length of C<session_id> and C<text>, according to your
+application.
+
+If you're planning on running your own queries on the C<data> column, you will need to
+create an index on it. Read PostgreSQL's online documentation on JSON data types for
+more information.
+
+=head2 SQLite
+
+When using SQLite as a backend, create the following table structure:
+
+	CREATE TABLE logs (
+		session_id TEXT NOT NULL,
+		date TEXT NOT NULL,
+		text TEXT NOT NULL,
+		data TEXT
+	);
+
+	CREATE INDEX logs_per_session ON logs (session_id);
+
+=head1 CONSTRUCTOR
+
+=head2 new( %options )
+
+Create a new instance of this class. The following options are supported:
+
+=over
+
+=item * db_type - the type of database (C<mysql>, C<pgsql> or C<sqlite>), required
+
+=item * database - the name of the database to connect to, defaults to "logs" (if using SQLite,
+this will be the path to the database file)
+
+=item * table - the name of the table to log into, defaults to "logs"
+
+=item * be_safe - whether the RaiseError flag should be passed to C<< DBI->connect >>
+
+=back
+
+The following options are supported by MySQL and PostgreSQL:
+
+=over
+
+=item * hostname - the host of the database server, defaults to C<127.0.0.1>
+
+=item * port - the port of the database server, defaults to C<3306> for MySQL, C<5432> for PostgreSQL
+
+=back
+
+=cut
+
 sub new {
 	my ($class, %opts) = @_;
 
 	croak "You must provide the database type (db_type), one of 'mysql' or 'pgsql'"
 		unless $opts{db_type} &&
-			$opts{db_type} =~ m/^(my|pg)sql$/i;
+			_in($opts{db_type}, qw/mysql pgsql sqlite/);
 
 	$opts{db_type} = lc($opts{db_type});
 
@@ -42,36 +159,26 @@ sub new {
 
 =head1 OBJECT METHODS
 
+The following methods implement the L<Pye> role, so you should refer to C<Pye>
+for their documentation. Some methods, however, have some MongoDB-specific notes,
+so keep reading.
+
 =head2 log( $session_id, $text, [ \%data ] )
 
-Inserts a new log message to the database, for the session with the supplied
-ID and with the supplied text. Optionally, a hash-ref of supporting data can
-be attached to the message.
-
-You should note that for consistency, the session ID will always be stored in
-the database as a string, even if it's a number.
-
-If a data hash-ref has been supplied, C<Pye> will make sure (recursively)
-that no keys of that hash-ref have dots in them, since MongoDB will refuse to
-store such hashes. All dots found will be replaced with semicolons (";").
+If C<\%data> is provided, it will be encoded to JSON before storing in the database.
 
 =cut
 
 sub log {
 	my ($self, $sid, $text, $data) = @_;
 
-	my $now = $self->{db_type} eq 'mysql' ? 'NOW(6)' : 'NOW()';
-
 	$self->{dbh}->do(
-		"INSERT INTO $self->{table} VALUES (?, $now, ?, ?)",
+		"INSERT INTO $self->{table} VALUES (?, ".$NOW{$self->{db_type}}.', ?, ?)',
 		undef, "$sid", $text, $data ? $self->{json}->encode($data) : undef
 	);
 }
 
 =head2 session_log( $session_id )
-
-Returns all log messages for the supplied session ID, sorted by date in ascending
-order.
 
 =cut
 
@@ -83,6 +190,9 @@ sub session_log {
 
 	my @msgs;
 	while (my $row = $sth->fetchrow_hashref) {
+		my ($d, $t) = $self->_format_datetime($row->{date});
+		$row->{date} = $d;
+		$row->{time} = $t;
 		$row->{data} = $self->{json}->decode($row->{data})
 			if $row->{data};
 		push(@msgs, $row);
@@ -95,25 +205,8 @@ sub session_log {
 
 =head2 list_sessions( [ \%opts ] )
 
-Returns a list of sessions, sorted by the date of the first message logged for each
-session in descending order. If no options are provided, the latest 10 sessions are
-returned. The following options are allowed:
-
-=over
-
-=item * B<skip>
-
-How many sessions to skip, defaults to 0.
-
-=item * B<limit>
-
-How many sessions to list, defaults to 10.
-
-=item * B<sort>
-
-The sorting of the sessions (as an ORDER BY clause). Defaults to 'date DESC'.
-
-=back
+Takes all options defined by L<Pye>. The C<sort> option, however, takes a standard
+C<ORDER BY> clause definition, e.g. C<id ASC>. This will default to C<date DESC>.
 
 =cut
 
@@ -130,6 +223,9 @@ sub list_sessions {
 
 	my @sessions;
 	while (my $row = $sth->fetchrow_hashref) {
+		my ($d, $t) = $self->_format_datetime($row->{date});
+		$row->{date} = $d;
+		$row->{time} = $t;
 		push(@sessions, $row);
 	}
 
@@ -138,12 +234,14 @@ sub list_sessions {
 	return @sessions;
 }
 
-#####################################
-# _remove_session_logs($session_id) #
-#===================================#
-# removes all log messages for the  #
-# supplied session ID.              #
-#####################################
+sub _format_datetime {
+	my ($self, $date) = @_;
+
+	my ($d, $t) = split(/T|\s/, $date);
+	$t = substr($t, 0, 12);
+
+	return ($d, $t);
+}
 
 sub _remove_session_logs {
 	my ($self, $session_id) = @_;
@@ -160,13 +258,25 @@ sub _build_dsn {
 				';host='.($opts->{hostname} || '127.0.0.1').
 					';port='.($opts->{port} || 3306).
 						';mysql_enable_utf8=1';
-	} else {
-		# pgsql
+	} elsif ($opts->{db_type} eq 'pgsql') {
 		'dbi:Pg:dbname='.
 			($opts->{database} || 'logs').
 				';host='.($opts->{hostname} || '127.0.0.1').
 					';port='.($opts->{port} || 5432);
+	} else {
+		# sqlite
+		'dbi:SQLite:dbname='.($opts->{database} || 'logs.db');
 	}
+}
+
+sub _in {
+	my $val = shift;
+
+	foreach (@_) {
+		return 1 if $val eq $_;
+	}
+
+	return;
 }
 
 =head1 CONFIGURATION AND ENVIRONMENT
@@ -179,18 +289,27 @@ C<Pye> depends on the following CPAN modules:
 
 =over
 
-=item * Carp
+=item * L<Carp>
 
-=item * DBI
+=item * L<DBI>
 
-=item * JSON::MaybeXS
+=item * L<JSON::MaybeXS>
 
-=item * Role::Tiny
+=item * L<Role::Tiny>
 
 =back
 
-Using C<Pye> with MySQL will also require C<DBD::mysql>. PostgreSQL will
-require C<DBD::Pg>.
+You will also need the appropriate driver for your database:
+
+=over
+
+=item * L<DBD::mysql> for MySQL
+
+=item * L<DBD::Pg> for PostgreSQL
+
+=item * L<DBD::SQLite> for SQLite
+
+=back
 
 =head1 BUGS AND LIMITATIONS
 

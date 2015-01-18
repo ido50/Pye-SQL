@@ -1,117 +1,114 @@
 NAME
-    Pye - Session-based logging platform on top of MongoDB
+    Pye::SQL - Log with Pye into MySQL, PostgreSQL or SQLite
 
 SYNOPSIS
-            use Pye;
+            use Pye::SQL;
 
-            my $pye = Pye->new;
+            my $pye = Pye::SQL->new(
+                    db_type => 'mysql', # or 'pgsql' or 'sqlite'
+                    database => 'my_log_database',
+                    table => 'myapp_logs'
+            );
 
-            # on session/request/run/whatever:
+            # now start logging
             $pye->log($session_id, "Some log message", { data => 'example data' });
 
+            # inspect the logs from the command line
+            pye -b SQL -t mysql -d my_log_database -T myapp_logs
+
 DESCRIPTION
-    "Pye" is a dead-simple, session-based logging platform on top of
-    MongoDB. I built "Pye" due to my frustration with file-based loggers
-    that generate logs that are extremely difficult to read, analyze and
-    maintain.
+    This package provides a relational SQL backend for the Pye logging
+    system. It currently supports MySQL, PostgreSQL and SQLite.
 
-    "Pye" is most useful for services (e.g. web apps) that handle requests,
-    or otherwise work in sessions, but can be useful in virtually any
-    application, including automatic (e.g. cron) scripts.
+    All of these database systems will require prior creation of the target
+    database and table.
 
-    In order to use "Pye", your program must define an ID for every session.
-    "Session" can really mean anything here: a client session in a web
-    service, a request to your web service, an execution of a script,
-    whatever. As long as a unique ID can be generated, "Pye" can handle
-    logging for you.
+  MySQL
+    When creating a table for logs, use something like this:
 
-    Main features:
+            CREATE TABLE logs (
+                    session_id VARCHAR(60) NOT NULL,
+                    date DATETIME(6) NOT NULL,
+                    text TEXT NOT NULL,
+                    data TEXT
+            );
 
-    *   Supporting data
+            CREATE INDEX logs_per_session ON logs (session_id);
 
-        With "Pye", any complex data structure (i.e. hash) can be attached
-        to any log message, enabling you to illustrate a situation, display
-        complex data, etc.
+    For the "session_id" and "text" columns, note that the data type
+    definition is purely a suggestions. Use your own judgment as to which
+    data types to use, and what lengths, according to your application.
 
-    *   No log levels
+  PostgreSQL
+    It is recommended to use PostgreSQL from version 9.3 and up. When
+    creating a table for logs, use something like this:
 
-        Yeah, I consider this a feature. Log levels are a bother, and I
-        don't need them. All log messages in "Pye" are saved into the
-        database, nothing gets lost.
+            CREATE TABLE logs (
+                    session_id VARCHAR(60) NOT NULL,
+                    date TIMESTAMP WITH TIME ZONE NOT NULL,
+                    text TEXT NOT NULL,
+                    data JSON
+            );
 
-    *   Easy inspection
+            CREATE INDEX ON logs (session_id);
 
-        "Pye" comes with a command line utility, pye, that offers quick
-        inspection of the log. You can easily view a list of current/latest
-        sessions and read the log of a specific session. No more mucking
-        about through endless log files, trying to understand which lines
-        belong to which session, or trying to find that area of the file
-        with messages from that certain date your software died on.
+    If using v9.4, "data" better be a "JSONB" column. As with "MySQL", use
+    your own judgment for the data type and length of "session_id" and
+    "text", according to your application.
+
+    If you're planning on running your own queries on the "data" column, you
+    will need to create an index on it. Read PostgreSQL's online
+    documentation on JSON data types for more information.
+
+  SQLite
+    When using SQLite as a backend, create the following table structure:
+
+            CREATE TABLE logs (
+                    session_id TEXT NOT NULL,
+                    date TEXT NOT NULL,
+                    text TEXT NOT NULL,
+                    data TEXT
+            );
+
+            CREATE INDEX logs_per_session ON logs (session_id);
 
 CONSTRUCTOR
-  new( [ %opts ] )
-    Creates a new instance of this class. %opts is anything that can be
-    passed to MongoDB::MongoClient to initiate a database connection, plus
-    the following options:
+  new( %options )
+    Create a new instance of this class. The following options are
+    supported:
 
-    *   log_db
+    *   db_type - the type of database ("mysql", "pgsql" or "sqlite"),
+        required
 
-        The name of the database to use for saving log messages. Defaults to
-        "logs".
+    *   database - the name of the database to connect to, defaults to
+        "logs" (if using SQLite, this will be the path to the database file)
 
-    *   log_coll
+    *   table - the name of the table to log into, defaults to "logs"
 
-        The name of the collection in which to save the messages. Defaults
-        to "logs" too.
+    *   be_safe - whether the RaiseError flag should be passed to
+        "DBI->connect"
 
-    *   session_coll
+    The following options are supported by MySQL and PostgreSQL:
 
-        The name of the collection in which to save session info. Defaults
-        to "sessions".
+    *   hostname - the host of the database server, defaults to 127.0.0.1
 
-    *   be_safe
-
-        Boolean indicating whether inserts should be safe (see "insert
-        ($object, $options?)" in MongoDB::Collection for more info).
-        Defaults to a false value.
+    *   port - the port of the database server, defaults to 3306 for MySQL,
+        5432 for PostgreSQL
 
 OBJECT METHODS
+    The following methods implement the Pye role, so you should refer to
+    "Pye" for their documentation. Some methods, however, have some
+    MongoDB-specific notes, so keep reading.
+
   log( $session_id, $text, [ \%data ] )
-    Inserts a new log message to the database, for the session with the
-    supplied ID and with the supplied text. Optionally, a hash-ref of
-    supporting data can be attached to the message.
-
-    You should note that for consistency, the session ID will always be
-    stored in the database as a string, even if it's a number.
-
-    If a data hash-ref has been supplied, "Pye" will make sure (recursively)
-    that no keys of that hash-ref have dots in them, since MongoDB will
-    refuse to store such hashes. All dots found will be replaced with
-    semicolons (";").
+    If "\%data" is provided, it will be encoded to JSON before storing in
+    the database.
 
   session_log( $session_id )
-    Returns all log messages for the supplied session ID, sorted by date in
-    ascending order.
-
   list_sessions( [ \%opts ] )
-    Returns a list of sessions, sorted by the date of the first message
-    logged for each session in descending order. If no options are provided,
-    the latest 10 sessions are returned. The following options are allowed:
-
-    *   limit
-
-        How many sessions to list, defaults to 10.
-
-    *   query
-
-        A MongoDB query hash-ref to filter the sessions. Defaults to an
-        empty query. You can query on the session ID (in the "_id"
-        attribute) and the date (in the "date" attribute).
-
-    *   sort
-
-        A MongoDB sort hash-ref to sort the results. Defaults to "{ date =>
-        -1 }" so that sessions are sorted by date in descending order.
+    Takes all options defined by Pye. The "sort" option, however, takes a
+    standard "ORDER BY" clause definition, e.g. "id ASC". This will default
+    to "date DESC".
 
 CONFIGURATION AND ENVIRONMENT
     "Pye" requires no configuration files or environment variables.
@@ -121,53 +118,53 @@ DEPENDENCIES
 
     *   Carp
 
-    *   MongoDB
+    *   DBI
 
-    *   Tie::IxHash
+    *   JSON::MaybeXS
 
-    The command line utility, pye, depends on:
+    *   Role::Tiny
 
-    *   Getopt::Compact
+    You will also need the appropriate driver for your database:
 
-    *   JSON
+    *   DBD::mysql for MySQL
 
-    *   Term::ANSIColor
+    *   DBD::Pg for PostgreSQL
 
-    *   Text::SpanningTable
+    *   DBD::SQLite for SQLite
 
 BUGS AND LIMITATIONS
-    Please report any bugs or feature requests to "bug-Pye@rt.cpan.org", or
-    through the web interface at
-    <http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Pye>.
+    Please report any bugs or feature requests to "bug-Pye-SQL@rt.cpan.org",
+    or through the web interface at
+    <http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Pye-SQL>.
 
 SUPPORT
     You can find documentation for this module with the perldoc command.
 
-            perldoc Pye
+            perldoc Pye::SQL
 
     You can also look for information at:
 
     *   RT: CPAN's request tracker
 
-        <http://rt.cpan.org/NoAuth/Bugs.html?Dist=Pye>
+        <http://rt.cpan.org/NoAuth/Bugs.html?Dist=Pye-SQL>
 
     *   AnnoCPAN: Annotated CPAN documentation
 
-        <http://annocpan.org/dist/Pye>
+        <http://annocpan.org/dist/Pye-SQL>
 
     *   CPAN Ratings
 
-        <http://cpanratings.perl.org/d/Pye>
+        <http://cpanratings.perl.org/d/Pye-SQL>
 
     *   Search CPAN
 
-        <http://search.cpan.org/dist/Pye/>
+        <http://search.cpan.org/dist/Pye-SQL/>
 
 AUTHOR
     Ido Perlmuter <ido@ido50.net>
 
 LICENSE AND COPYRIGHT
-    Copyright (c) 2013, Ido Perlmuter "ido@ido50.net".
+    Copyright (c) 2015, Ido Perlmuter "ido@ido50.net".
 
     This module is free software; you can redistribute it and/or modify it
     under the same terms as Perl itself, either version 5.8.1 or any later

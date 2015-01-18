@@ -55,7 +55,8 @@ SKIP: {
 
 	ok(exists $logs[1]->{data} && $logs[1]->{data}->{hey} eq 'there', 'Second log message has a data element');
 
-	#$pye->_remove_session_logs(1);
+	$pye->_remove_session_logs(1);
+	$pye->_remove_session_logs(2);
 }
 
 done_testing();
