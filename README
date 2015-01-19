@@ -40,8 +40,9 @@ DESCRIPTION
     data types to use, and what lengths, according to your application.
 
   PostgreSQL
-    It is recommended to use PostgreSQL from version 9.3 and up. When
-    creating a table for logs, use something like this:
+    It is recommended to use PostgreSQL version 9.3 and up, supporting JSON
+    or JSONB columns. When creating a table for logs, use something like
+    this:
 
             CREATE TABLE logs (
                     session_id VARCHAR(60) NOT NULL,
@@ -52,9 +53,9 @@ DESCRIPTION
 
             CREATE INDEX ON logs (session_id);
 
-    If using v9.4, "data" better be a "JSONB" column. As with "MySQL", use
-    your own judgment for the data type and length of "session_id" and
-    "text", according to your application.
+    If using v9.4 or up, "data" might better be a "JSONB" column. As with
+    "MySQL", use your own judgment for the data type and length of
+    "session_id" and "text", according to your application.
 
     If you're planning on running your own queries on the "data" column, you
     will need to create an index on it. Read PostgreSQL's online
@@ -72,6 +73,11 @@ DESCRIPTION
 
             CREATE INDEX logs_per_session ON logs (session_id);
 
+    Note that, as opposed to other database systems, SQLite will take the
+    path to the database file as the "database" parameter, instead of a
+    database name. You can also provide ":memory:" for an in-memory
+    database.
+
 CONSTRUCTOR
   new( %options )
     Create a new instance of this class. The following options are
@@ -84,9 +90,6 @@ CONSTRUCTOR
         "logs" (if using SQLite, this will be the path to the database file)
 
     *   table - the name of the table to log into, defaults to "logs"
-
-    *   be_safe - whether the RaiseError flag should be passed to
-        "DBI->connect"
 
     The following options are supported by MySQL and PostgreSQL:
 
