@@ -2,16 +2,20 @@
 
 use warnings;
 use strict;
-use Test::More tests => 8;
-use Pye::SQL;
+use Test::More;
+
+BEGIN {
+	eval { require DBD::SQLite; 1 }
+		|| plan skip_all => 'DBD::SQLite required';
+
+	plan tests => 9;
+	use_ok('Pye::SQL');
+}
 
 my $pye = Pye::SQL->new(
 	db_type => 'sqlite',
-	database => 't/test.db',
-	table => 'pye_test',
-	username => 'ido',
-	password => '',
-	be_safe => 1
+	database => ':memory:', # in memory database
+	table => 'pye_test'
 );
 
 ok($pye, 'Pye::SQL object created');
@@ -29,7 +33,7 @@ ok($pye->log(1, "What's up?"), "Simple log message");
 
 ok($pye->log(1, "Some data", { hey => 'there' }), "Log message with data structure");
 
-sleep(0.5);
+sleep(1);
 
 ok($pye->log(2, "Yo yo ma"), "Log message for another session");
 

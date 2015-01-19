@@ -2,8 +2,15 @@
 
 use warnings;
 use strict;
-use Test::More tests => 8;
-use Pye::SQL;
+use Test::More;
+
+BEGIN {
+	eval { require DBD::Pg; 1 }
+		|| plan skip_all => 'DBD::Pg required';
+
+	plan tests => 9;
+	use_ok('Pye::SQL');
+}
 
 my $pye;
 
@@ -11,16 +18,13 @@ eval {
 	$pye = Pye::SQL->new(
 		db_type => 'pgsql',
 		database => 'test',
-		table => 'pye_test',
-		username => 'ido',
-		password => '',
-		be_safe => 1
+		table => 'pye_test'
 	);
 };
 
 SKIP: {
 	if ($@) {
-		diag("Skipped: $@.");
+		diag("Skipped: PostgreSQL needs to be running for this test.");
 		skip('PostgreSQL needs to be running for this test.', 8);
 	}
 
@@ -57,6 +61,8 @@ SKIP: {
 
 	$pye->_remove_session_logs(1);
 	$pye->_remove_session_logs(2);
+
+	$pye->{dbh}->do('DROP TABLE pye_test');
 }
 
 done_testing();

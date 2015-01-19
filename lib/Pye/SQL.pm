@@ -68,8 +68,8 @@ what lengths, according to your application.
 
 =head2 PostgreSQL
 
-It is recommended to use PostgreSQL from version 9.3 and up. When creating a table
-for logs, use something like this:
+It is recommended to use PostgreSQL version 9.3 and up, supporting JSON or JSONB
+columns. When creating a table for logs, use something like this:
 
 	CREATE TABLE logs (
 		session_id VARCHAR(60) NOT NULL,
@@ -80,9 +80,9 @@ for logs, use something like this:
 
 	CREATE INDEX ON logs (session_id);
 
-If using v9.4, C<data> better be a C<JSONB> column. As with C<MySQL>, use your own
-judgment for the data type and length of C<session_id> and C<text>, according to your
-application.
+If using v9.4 or up, C<data> might better be a C<JSONB> column. As with C<MySQL>,
+use your own judgment for the data type and length of C<session_id> and C<text>,
+according to your application.
 
 If you're planning on running your own queries on the C<data> column, you will need to
 create an index on it. Read PostgreSQL's online documentation on JSON data types for
@@ -101,6 +101,10 @@ When using SQLite as a backend, create the following table structure:
 
 	CREATE INDEX logs_per_session ON logs (session_id);
 
+Note that, as opposed to other database systems, SQLite will take the path to the
+database file as the C<database> parameter, instead of a database name. You can also
+provide C<:memory:> for an in-memory database.
+
 =head1 CONSTRUCTOR
 
 =head2 new( %options )
@@ -115,8 +119,6 @@ Create a new instance of this class. The following options are supported:
 this will be the path to the database file)
 
 =item * table - the name of the table to log into, defaults to "logs"
-
-=item * be_safe - whether the RaiseError flag should be passed to C<< DBI->connect >>
 
 =back
 
@@ -148,7 +150,7 @@ sub new {
 			$opts{password},
 			{
 				AutoCommit => 1,
-				RaiseError => $opts{be_safe} ? 1 : 0
+				RaiseError => 1
 			}
 		),
 		json => JSON->new->allow_blessed->convert_blessed,
