@@ -36,7 +36,7 @@ DESCRIPTION
             CREATE INDEX logs_per_session ON logs (session_id);
 
     For the "session_id" and "text" columns, note that the data type
-    definition is purely a suggestions. Use your own judgment as to which
+    definition is purely a suggestion. Use your own judgment as to which
     data types to use, and what lengths, according to your application.
 
   PostgreSQL
@@ -54,7 +54,7 @@ DESCRIPTION
             CREATE INDEX ON logs (session_id);
 
     If using v9.4 or up, "data" might better be a "JSONB" column. As with
-    "MySQL", use your own judgment for the data type and length of
+    MySQL, use your own judgment for the data type and length of
     "session_id" and "text", according to your application.
 
     If you're planning on running your own queries on the "data" column, you
@@ -101,7 +101,7 @@ CONSTRUCTOR
 OBJECT METHODS
     The following methods implement the Pye role, so you should refer to
     "Pye" for their documentation. Some methods, however, have some
-    MongoDB-specific notes, so keep reading.
+    backend-specific notes, so keep reading.
 
   log( $session_id, $text, [ \%data ] )
     If "\%data" is provided, it will be encoded to JSON before storing in

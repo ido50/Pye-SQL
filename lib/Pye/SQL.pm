@@ -63,7 +63,7 @@ When creating a table for logs, use something like this:
 	CREATE INDEX logs_per_session ON logs (session_id);
 
 For the C<session_id> and C<text> columns, note that the data type definition is
-purely a suggestions. Use your own judgment as to which data types to use, and
+purely a suggestion. Use your own judgment as to which data types to use, and
 what lengths, according to your application.
 
 =head2 PostgreSQL
@@ -80,7 +80,7 @@ columns. When creating a table for logs, use something like this:
 
 	CREATE INDEX ON logs (session_id);
 
-If using v9.4 or up, C<data> might better be a C<JSONB> column. As with C<MySQL>,
+If using v9.4 or up, C<data> might better be a C<JSONB> column. As with MySQL,
 use your own judgment for the data type and length of C<session_id> and C<text>,
 according to your application.
 
@@ -162,7 +162,7 @@ sub new {
 =head1 OBJECT METHODS
 
 The following methods implement the L<Pye> role, so you should refer to C<Pye>
-for their documentation. Some methods, however, have some MongoDB-specific notes,
+for their documentation. Some methods, however, have some backend-specific notes,
 so keep reading.
 
 =head2 log( $session_id, $text, [ \%data ] )
