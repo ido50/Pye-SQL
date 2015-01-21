@@ -21,7 +21,13 @@ DESCRIPTION
     system. It currently supports MySQL, PostgreSQL and SQLite.
 
     All of these database systems will require prior creation of the target
-    database and table.
+    database and table. Read on for notes and suggestions for each supported
+    database system.
+
+  USING THE pye COMMAND LINE UTILITY
+    The pye command line utility used to inspect logs supports basic options
+    that are consistent across all backends. Anything else you provide is
+    passed to the "new( %options )" constructor,
 
   MySQL
     When creating a table for logs, use something like this:

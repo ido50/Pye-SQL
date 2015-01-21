@@ -10,7 +10,7 @@ use DBI;
 use JSON::MaybeXS qw/JSON/;
 use Role::Tiny::With;
 
-our $VERSION = "1.000000";
+our $VERSION = "1.000001";
 $VERSION = eval $VERSION;
 
 with 'Pye';
@@ -47,7 +47,13 @@ This package provides a relational SQL backend for the L<Pye> logging system.
 It currently supports MySQL, PostgreSQL and SQLite.
 
 All of these database systems will require prior creation of the target database
-and table.
+and table. Read on for notes and suggestions for each supported database system.
+
+=head2 USING THE pye COMMAND LINE UTILITY
+
+The L<pye> command line utility used to inspect logs supports basic options that
+are consistent across all backends. Anything else you provide is passed to the
+L<new( %options )> constructor, 
 
 =head2 MySQL
 
