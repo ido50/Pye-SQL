@@ -93,7 +93,7 @@ CONSTRUCTOR
 
     The following options are supported by MySQL and PostgreSQL:
 
-    *   hostname - the host of the database server, defaults to 127.0.0.1
+    *   host - the host of the database server, defaults to 127.0.0.1
 
     *   port - the port of the database server, defaults to 3306 for MySQL,
         5432 for PostgreSQL

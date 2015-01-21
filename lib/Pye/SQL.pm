@@ -126,7 +126,7 @@ The following options are supported by MySQL and PostgreSQL:
 
 =over
 
-=item * hostname - the host of the database server, defaults to C<127.0.0.1>
+=item * host - the host of the database server, defaults to C<127.0.0.1>
 
 =item * port - the port of the database server, defaults to C<3306> for MySQL, C<5432> for PostgreSQL
 
@@ -257,13 +257,13 @@ sub _build_dsn {
 	if ($opts->{db_type} eq 'mysql') {
 		'DBI:mysql:database='.
 			($opts->{database} || 'logs').
-				';host='.($opts->{hostname} || '127.0.0.1').
+				';host='.($opts->{host} || '127.0.0.1').
 					';port='.($opts->{port} || 3306).
 						';mysql_enable_utf8=1';
 	} elsif ($opts->{db_type} eq 'pgsql') {
 		'dbi:Pg:dbname='.
 			($opts->{database} || 'logs').
-				';host='.($opts->{hostname} || '127.0.0.1').
+				';host='.($opts->{host} || '127.0.0.1').
 					';port='.($opts->{port} || 5432);
 	} else {
 		# sqlite
