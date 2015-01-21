@@ -1,6 +1,8 @@
 Revision history for Pye-SQL
 
 {{$NEXT}}
+
+1.000001  2015-01-21 19:35:37+02:00 Asia/Jerusalem
 	- Bugfix: the host parameter was accidentally called "hostname", and
 	  has been renamed back
 	- Added note about using the pye command line utility to inspect the log
